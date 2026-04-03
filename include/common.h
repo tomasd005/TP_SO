@@ -5,6 +5,14 @@
 
 #define CONTROLLER_FIFO " /tmp/controller_fifo"
 
+typedef enum
+{
+    EXEC = 1,
+    STATUS = 2,
+    SHUTDOWN = 3,
+    FINISHED = 4
+} RequesType;
+
 typedef struct
 {
     int type;
