@@ -7,12 +7,11 @@
 #include <common.h>
 #include <stdlib.h>
 
-
 void print_usage(void)
 {
     printf("usage:\n");
     printf("./runner -e <user-id> <command> [args...]\n");
-    printf("./runner .c\n");
+    printf("./runner -c\n");
     printf("./runner -s\n");
 }
 int main(int argc, char *argv[])
@@ -32,7 +31,7 @@ int main(int argc, char *argv[])
 
         pid_t pid = getpid();
         char fifo_name[64];
-        Request req;
+        Request req; // fifo privado criado
 
         snprintf(fifo_name, sizeof(fifo_name), "/tmp/runner_%d",
                  pid);
@@ -47,8 +46,20 @@ int main(int argc, char *argv[])
         req.pid = pid;
         req.user_id = atoi(argv[2]);
         strcpy(req.fifo_name, fifo_name);
-
-        printf("FIFO privado criado: %s\n", fifo_name);
+        req.command[0] = '\0';
+        for (int i = 3; i < argc; i++)
+        {
+            strcat(req.command, argv[i]);
+            if (i < argc - 1)
+            {
+                strcat(req.command, " ");
+            }
+        }
+        printf("type: %d\n", req.type);
+        printf("pid: %d\n", req.pid);
+        printf("user_id: %d\n", req.user_id);
+        printf("fifo_name: %s\n", req.fifo_name);
+        printf("command: %s\n", req.command);
 
         return 0;
     }
