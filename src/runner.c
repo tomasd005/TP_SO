@@ -1,3 +1,7 @@
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -17,20 +21,32 @@ int main(int argc, char *argv[])
     }
     if (strcmp(argv[1], "-e") == 0)
     {
-        if (argc < 4) // para usar este comando tem que ser dados dois dados adicionais o user-id e o command
+        if (argc < 4)
         {
             print_usage();
             return 1;
         }
-        printf("modo execucao\n");
-        printf("user-id; %s\n", argv[2]);
-        printf("comando: %s\n", argv[3]);
+
+        pid_t pid = getpid();
+        char fifo_name[64];
+
+        snprintf(fifo_name, sizeof(fifo_name), "/tmp/runner_%d",
+                 pid);
+
+        if (mkfifo(fifo_name, 0666) == -1 && errno != EEXIST)
+        {
+            perror("mkfifo");
+            return 1;
+        }
+
+        printf("FIFO privado criado: %s\n", fifo_name);
+
         return 0;
     }
 
     if (strcmp(argv[1], "-c") == 0)
     {
-        if (argc != 2) 
+        if (argc != 2)
         {
             print_usage();
             return 1;
@@ -52,6 +68,4 @@ int main(int argc, char *argv[])
 
     print_usage();
     return 1;
-
-    return 0;
 }
