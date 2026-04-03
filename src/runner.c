@@ -4,6 +4,9 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <common.h>
+#include <stdlib.h>
+
 
 void print_usage(void)
 {
@@ -29,6 +32,7 @@ int main(int argc, char *argv[])
 
         pid_t pid = getpid();
         char fifo_name[64];
+        Request req;
 
         snprintf(fifo_name, sizeof(fifo_name), "/tmp/runner_%d",
                  pid);
@@ -38,6 +42,11 @@ int main(int argc, char *argv[])
             perror("mkfifo");
             return 1;
         }
+
+        req.type = EXEC;
+        req.pid = pid;
+        req.user_id = atoi(argv[2]);
+        strcpy(req.fifo_name, fifo_name);
 
         printf("FIFO privado criado: %s\n", fifo_name);
 
