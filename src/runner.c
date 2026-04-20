@@ -1,6 +1,8 @@
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -55,12 +57,79 @@ int main(int argc, char *argv[])
                 strcat(req.command, " ");
             }
         }
-        printf("type: %d\n", req.type);
-        printf("pid: %d\n", req.pid);
-        printf("user_id: %d\n", req.user_id);
-        printf("fifo_name: %s\n", req.fifo_name);
-        printf("command: %s\n", req.command);
+        // 1. enviar request ao controller
+        int fd_controller = open(CONTROLLER_FIFO, O_WRONLY);
+        if (fd_controller == -1)
+        {
+            perror("open controller fifo");
+            unlink(fifo_name);
+            return 1;
+        }
+        write(fd_controller, &req, sizeof(Request));
+        close(fd_controller);
 
+        // notificar utilizador
+        char msg[128];
+        int len = snprintf(msg, sizeof(msg), "[runner] command %d submitted\n", pid);
+        write(STDOUT_FILENO, msg, len);
+
+        // 2. esperar resposta do controller no fifo privado
+        int fd_private = open(fifo_name, O_RDONLY);
+        if (fd_private == -1)
+        {
+            perror("open private fifo");
+            unlink(fifo_name);
+            return 1;
+        }
+
+        char response;
+        read(fd_private, &response, 1);
+        close(fd_private);
+
+        len = snprintf(msg, sizeof(msg), "[runner] executing command %d...\n", pid);
+        write(STDOUT_FILENO, msg, len);
+
+        // 3. executar o comando com fork + exec
+        pid_t child = fork();
+        if (child == -1)
+        {
+            perror("fork");
+            unlink(fifo_name);
+            return 1;
+        }
+
+        if (child == 0)
+        {
+            // processo filho: executar o comando
+            execlp("/bin/sh", "sh", "-c", req.command, NULL);
+            perror("execlp");
+            _exit(1);
+        }
+
+        // processo pai: esperar o filho terminar
+        int status;
+        waitpid(child, &status, 0);
+
+        // 4. notificar controller que o comando terminou
+        Request done;
+        done.type = FINISHED;
+        done.pid = pid;
+        done.user_id = req.user_id;
+        strcpy(done.fifo_name, fifo_name);
+        strcpy(done.command, req.command);
+
+        fd_controller = open(CONTROLLER_FIFO, O_WRONLY);
+        if (fd_controller != -1)
+        {
+            write(fd_controller, &done, sizeof(Request));
+            close(fd_controller);
+        }
+
+        len = snprintf(msg, sizeof(msg), "[runner] command %d finished\n", pid);
+        write(STDOUT_FILENO, msg, len);
+
+        // 5. limpar fifo privado
+        unlink(fifo_name);
         return 0;
     }
 
