@@ -12,7 +12,7 @@
 void print_usage(void)
 {
     printf("usage:\n");
-    printf("./runner -e <user-id> <command> [args...]\n");
+    printf("./runner -e <user-id> \"<command> <arg1> <arg2> <...>\"\n");
     printf("./runner -c\n");
     printf("./runner -s\n");
 }
@@ -25,7 +25,7 @@ int main(int argc, char *argv[])
     }
     if (strcmp(argv[1], "-e") == 0) // moddo executar
     {
-        if (argc < 4)
+        if (argc != 4)
         {
             print_usage();
             return 1;
@@ -48,15 +48,7 @@ int main(int argc, char *argv[])
         req.pid = pid;
         req.user_id = atoi(argv[2]);
         strcpy(req.fifo_name, fifo_name);
-        req.command[0] = '\0';
-        for (int i = 3; i < argc; i++)
-        {
-            strcat(req.command, argv[i]);
-            if (i < argc - 1)
-            {
-                strcat(req.command, " ");
-            }
-        }
+        strcpy(req.command, argv[3]);
         // 1. enviar request ao controller
 
         int fd_controller = open(CONTROLLER_FIFO, O_WRONLY);
