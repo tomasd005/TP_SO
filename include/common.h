@@ -4,7 +4,7 @@
 
 #include <sys/types.h>
 
-#define CONTROLLER_FIFO "/tmp/controller_fifo"
+#define CONTROLLER_FIFO "/tmp/controller_fifo" // endereço publico do controller
 
 typedef enum
 {
