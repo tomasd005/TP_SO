@@ -193,7 +193,7 @@ int main(int argc, char *argv[])
         unlink(fifo_name);
         return 0;
     }
-    if (strcmp(argv[1], "-s") == 0)
+    if (strcmp(argv[1], "-s") == 0) // modo shutdown
     {
         if (argc != 2)
         {
@@ -201,7 +201,59 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        printf("modo shutdown\n");
+        pid_t pid = getpid();
+        char fifo_name[64];
+        snprintf(fifo_name, sizeof(fifo_name), "/tmp/runner_%d", pid);
+
+        if (mkfifo(fifo_name, 0666) == -1 && errno != EEXIST)
+        {
+            perror("mkfifo");
+            return 1;
+        }
+
+        // construir pedido de shutdown
+        Request req;
+        req.type = SHUTDOWN;
+        req.pid = pid;
+        req.user_id = 0;
+        strcpy(req.fifo_name, fifo_name);
+        req.command[0] = '\0';
+
+        // enviar pedido ao controller
+        int fd_controller = open(CONTROLLER_FIFO, O_WRONLY);
+        if (fd_controller == -1)
+        {
+            perror("open controller fifo");
+            unlink(fifo_name);
+            return 1;
+        }
+        write(fd_controller, &req, sizeof(Request));
+        close(fd_controller);
+
+        char msg[128];
+        int len = snprintf(msg, sizeof(msg), "[runner] sent shutdown notification\n");
+        write(STDOUT_FILENO, msg, len);
+
+        // esperar que o controller confirme o shutdown
+        len = snprintf(msg, sizeof(msg), "[runner] waiting for controller to shutdown...\n");
+        write(STDOUT_FILENO, msg, len);
+
+        int fd_private = open(fifo_name, O_RDONLY);
+        if (fd_private == -1)
+        {
+            perror("open private fifo");
+            unlink(fifo_name);
+            return 1;
+        }
+
+        char response;
+        read(fd_private, &response, 1);
+        close(fd_private);
+
+        len = snprintf(msg, sizeof(msg), "[runner] controller exited.\n");
+        write(STDOUT_FILENO, msg, len);
+
+        unlink(fifo_name);
         return 0;
     }
 
