@@ -11,10 +11,12 @@
 
 void print_usage(void)
 {
-    printf("usage:\n");
-    printf("./runner -e <user-id> \"<command> <arg1> <arg2> <...>\"\n");
-    printf("./runner -c\n");
-    printf("./runner -s\n");
+    const char *msg =
+        "usage:\n"
+        "./runner -e <user-id> \"<command> <arg1> <arg2> <...>\"\n"
+        "./runner -c\n"
+        "./runner -s\n";
+    write(STDERR_FILENO, msg, strlen(msg));
 }
 int main(int argc, char *argv[])
 {
@@ -44,7 +46,7 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        req.type = EXEC; 
+        req.type = EXEC;
         req.pid = pid;
         req.user_id = atoi(argv[2]);
         strcpy(req.fifo_name, fifo_name);
@@ -84,7 +86,7 @@ int main(int argc, char *argv[])
         write(STDOUT_FILENO, msg, len);
 
         // 3. executar o comando com fork + exec
-        
+
         pid_t child = fork();
         if (child == -1)
         {
@@ -212,7 +214,11 @@ int main(int argc, char *argv[])
                     if (file_in)
                     {
                         int fd = open(file_in, O_RDONLY);
-                        if (fd == -1) { perror("open"); _exit(1); }
+                        if (fd == -1)
+                        {
+                            perror("open");
+                            _exit(1);
+                        }
                         dup2(fd, STDIN_FILENO);
                         close(fd);
                     }
@@ -221,7 +227,11 @@ int main(int argc, char *argv[])
                     if (file_out)
                     {
                         int fd = open(file_out, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                        if (fd == -1) { perror("open"); _exit(1); }
+                        if (fd == -1)
+                        {
+                            perror("open");
+                            _exit(1);
+                        }
                         dup2(fd, STDOUT_FILENO);
                         close(fd);
                     }
@@ -230,7 +240,11 @@ int main(int argc, char *argv[])
                     if (file_err)
                     {
                         int fd = open(file_err, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                        if (fd == -1) { perror("open"); _exit(1); }
+                        if (fd == -1)
+                        {
+                            perror("open");
+                            _exit(1);
+                        }
                         dup2(fd, STDERR_FILENO);
                         close(fd);
                     }
