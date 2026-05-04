@@ -37,6 +37,9 @@ static int used_slots = 0;
 static int  shutdown_pending = 0;
 static char shutdown_fifo[MAX_FIFO] = {0};
 
+/* Política de escalonamento: "rr" (Round-Robin, default) ou "fifo" */
+static char sched_policy[16] = "rr";
+
 /*Utilitários de fila*/
 
 static int queue_push(const Request *req, struct timeval *tv)
@@ -69,9 +72,17 @@ static void queue_remove_at(int k, Entry *out)
     q_size--;
 }
 
-/*Política de escalonamento: Round-Robin por user*/
+/*Política de escalonamento*/
 
-static int schedule_next_index(void)
+/* FIFO: despacha sempre o primeiro da fila */
+static int schedule_next_fifo(void)
+{
+    if (q_size == 0) return -1;
+    return 0;
+}
+
+/* Round-Robin: prefere utilizador que não esteja já a correr */
+static int schedule_next_rr(void)
 {
     if (q_size == 0) return -1;
 
@@ -93,6 +104,13 @@ static int schedule_next_index(void)
 
     /* Todos os users em fila já têm algo a correr → FIFO */
     return 0;
+}
+
+static int schedule_next_index(void)
+{
+    if (strcmp(sched_policy, "fifo") == 0)
+        return schedule_next_fifo();
+    return schedule_next_rr();
 }
 
 /*Despachar comandos da fila para slots livres*/
@@ -148,22 +166,20 @@ static void handle_status(const Request *req)
     char buf[4096];
     int  pos = 0;
 
-    pos += snprintf(buf + pos, sizeof(buf) - pos,
-        "=== Running (%d/%d) ===\n", used_slots, max_slots);
+    pos += snprintf(buf + pos, sizeof(buf) - pos, "Executing\n");
     for (int i = 0; i < max_slots; i++) {
         if (running[i].active)
             pos += snprintf(buf + pos, sizeof(buf) - pos,
-                "  [RUNNING] user=%d pid=%d cmd=%s\n",
-                running[i].user_id, running[i].pid, running[i].command);
+                "user-id %d - command-id %d\n",
+                running[i].user_id, running[i].pid);
     }
 
-    pos += snprintf(buf + pos, sizeof(buf) - pos,
-        "=== Queued (%d) ===\n", q_size);
+    pos += snprintf(buf + pos, sizeof(buf) - pos, "---\nScheduled\n");
     for (int k = 0; k < q_size; k++) {
         int idx = (q_head + k) % MAX_QUEUE;
         pos += snprintf(buf + pos, sizeof(buf) - pos,
-            "  [QUEUED #%d] user=%d pid=%d cmd=%s\n",
-            k + 1, queue[idx].user_id, queue[idx].pid, queue[idx].command);
+            "user-id %d - command-id %d\n",
+            queue[idx].user_id, queue[idx].pid);
     }
 
     write(fd, buf, pos);
@@ -177,6 +193,10 @@ int main(int argc, char *argv[])
     if (argc >= 2) {
         max_slots = atoi(argv[1]);
         if (max_slots < 1) max_slots = 1;
+    }
+    if (argc >= 3) {
+        strncpy(sched_policy, argv[2], sizeof(sched_policy) - 1);
+        sched_policy[sizeof(sched_policy) - 1] = '\0';
     }
 
     running = calloc(max_slots, sizeof(Entry));
@@ -203,7 +223,7 @@ int main(int argc, char *argv[])
     }
 
     char msg[64];
-    int  n = snprintf(msg, sizeof(msg), "[controller] started (slots=%d)\n", max_slots);
+    int  n = snprintf(msg, sizeof(msg), "[controller] started (slots=%d policy=%s)\n", max_slots, sched_policy);
     write(STDOUT_FILENO, msg, n);
 
     for (;;) {
