@@ -166,7 +166,7 @@ static void handle_status(const Request *req)
     char buf[4096];
     int  pos = 0;
 
-    pos += snprintf(buf + pos, sizeof(buf) - pos, "Executing\n");
+    pos += snprintf(buf + pos, sizeof(buf) - pos, "---\nExecuting\n");
     for (int i = 0; i < max_slots; i++) {
         if (running[i].active)
             pos += snprintf(buf + pos, sizeof(buf) - pos,
