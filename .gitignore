@@ -2,3 +2,8 @@ enunciado.pdf
 faq.pdf
 faq.txt
 enunciado.txt
+bin/controller
+bin/runner
+obj/controller.o
+obj/runner.o
+tmp/log.txt
