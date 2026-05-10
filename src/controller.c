@@ -39,6 +39,7 @@ static char shutdown_fifo[MAX_FIFO] = {0};
 
 /* Política de escalonamento: "rr" (Round-Robin, default) ou "fifo" */
 static char sched_policy[16] = "rr";
+static int last_dispatched_user = -1;
 
 /*Utilitários de fila*/
 
@@ -81,7 +82,6 @@ static int schedule_next_fifo(void)
     return 0;
 }
 
-/* Round-Robin: prefere utilizador que não esteja já a correr */
 static int schedule_next_rr(void)
 {
     if (q_size == 0) return -1;
@@ -92,7 +92,17 @@ static int schedule_next_rr(void)
         if (running[i].active)
             running_users[nr++] = running[i].user_id;
 
-    /* Preferir utilizador que não esteja já a correr */
+    /* 1. Preferir utilizador que não esteja já a correr E que não tenha sido o último a correr */
+    for (int k = 0; k < q_size; k++) {
+        int idx = (q_head + k) % MAX_QUEUE;
+        int uid = queue[idx].user_id;
+        int found = 0;
+        for (int j = 0; j < nr; j++)
+            if (running_users[j] == uid) { found = 1; break; }
+        if (!found && uid != last_dispatched_user) return k;
+    }
+
+    /* 2. Se falhar, tentar um que apenas não esteja a correr */
     for (int k = 0; k < q_size; k++) {
         int idx = (q_head + k) % MAX_QUEUE;
         int uid = queue[idx].user_id;
@@ -102,7 +112,7 @@ static int schedule_next_rr(void)
         if (!found) return k;
     }
 
-    /* Todos os users em fila já têm algo a correr → FIFO */
+    /* 3. Todos os users em fila já têm algo a correr → FIFO */
     return 0;
 }
 
@@ -131,6 +141,7 @@ static void try_dispatch(void)
         running[slot] = e;
         running[slot].active = 1;
         used_slots++;
+        last_dispatched_user = e.user_id;
 
         /* Autorizar o runner */
         int fd = open(e.fifo_name, O_WRONLY);
